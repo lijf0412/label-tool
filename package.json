@@ -1,0 +1,54 @@
+{
+    "name": "label-tool",
+    "displayName": "label-tool",
+    "description": "COMMON_LABEL新增选择",
+    "keywords": [
+        "vscode",
+        "plugin",
+        "demo"
+    ],
+    "version": "1.0.1",
+    "publisher": "lzl",
+    "engines": {
+        "vscode": "^1.27.0"
+    },
+    "categories": [
+        "Other"
+    ],
+    "activationEvents": [
+        "onCommand:extension.enableLabelTool"
+    ],
+    "main": "./src/extension",
+    "contributes": {
+        "commands": [
+            {
+                "command": "extension.resetInitialData",
+                "title": "重置Label数据源"
+            },
+            {
+                "command": "extension.enableLabelTool",
+                "title": "启用Label Tool"
+            }
+        ],
+        "keybindings": [
+            {
+                "command": "extension.resetInitialData",
+                "key": "alt+f5",
+                "mac": "cmd+f5",
+                "when": "editorTextFocus"
+            }
+        ]
+    },
+    "scripts": {
+        "postinstall": "node ./node_modules/vscode/bin/install",
+        "test": "node ./node_modules/vscode/bin/test"
+    },
+    "devDependencies": {
+        "typescript": "^2.6.1",
+        "vscode": "^1.1.6",
+        "eslint": "^4.11.0",
+        "@types/node": "^7.0.43",
+        "@types/mocha": "^2.2.42"
+    },
+    "license": "SEE LICENSE IN LICENSE.txt"
+}
