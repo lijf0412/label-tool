@@ -1,109 +1,48 @@
 const vscode = require('vscode');
-const path = require('path');
+ const path = require('path');
 const fs = require('fs');
 const util = require('./util')
 const readline = require('readline');
-const ts = require('typescript')
-const { transform, createProgram } = ts
-/**
- * 鼠标悬停提示，当鼠标停在package.json的dependencies或者devDependencies时，
- * 自动显示对应包的名称、版本号和许可协议
- */
- function tsScan(fileList) {
-    const cmd = ts.parseCommandLine(fileList); // replace with target file
-    // Create the program
-    const program = createProgram(cmd.fileNames, { ...cmd.options, allowJs: true });
-    const typeChecker = program.getTypeChecker();
-  
-    const assignNodeList = [];
-  
-    const scanWord = (typeChecker) => (context) => (sourceFile) => {
-      const visitor = (node) => {
-        if (ts.SyntaxKind.PropertyAssignment === node.kind) {
-          assignNodeList.push(node);
-          return node;
-        }
-        // 继续深度搜索
-        if (node && node.getChildCount() > 0) {
-          return ts.visitEachChild(node, visitor, context);
-        }
-        return node;
-      };
-  
-      return visitor(sourceFile)
-    }
-    const sourceFiles = program.getSourceFiles();
-    sourceFiles.forEach(sourceFile => {
-      const { fileName } = sourceFile
-      if (fileList.includes(path.normalize(fileName))) {
-        transform(sourceFile, [scanWord(typeChecker)])
-      }
+const parser = require('@babel/parser')
+
+const getAstInfo  = (path) => {
+  const conts = fs.readFileSync(path,'utf-8')
+  const ast = parser.parse(conts, {
+    sourceType: "module"
+  });
+  return {
+    comments: ast.comments,
+    body: ast.program.body
+  }
+}
+
+const formatDataList = ({ comments, body }) => {
+    const curNode = body.find(item=> {
+      return item.type == 'VariableDeclaration' && item.declarations.some(i => {
+        return i.id.name == COMMON_LABEL && i.id.type == 'Identifier'
+      })
     })
-    return getSharkInfoFromNode(assignNodeList);
-  }
+    const properties = curNode.declarations.reduce((ret, item) => {
+      if(item.id.name == COMMON_LABEL && item.id.type == 'Identifier' && item.init.type == 'ObjectExpression') {
+        ret = ret.concat(item.init.properties)
+      }
+      return ret
+    },[])
 
-  const getNodeComment = (node) => {
-    const fullStart = node.getFullStart();
-    let range = ts.getLeadingCommentRanges(node.getSourceFile().text, fullStart)
-    if (range && range.length > 0) {
-      let { pos, end } = range[0]
-      return node.getFullText()
-        .slice(pos - fullStart, end - fullStart)
-        .replace('//', '').trim()
-    }
-    return '';
-  }
-  
-  const getLastComment = (node) => {
-    const fullText = node.getSourceFile().getFullText();
-    const endPos = node.getEnd();
-    const leftText = fullText.slice(endPos);
-    const trivia = leftText.slice(leftText.indexOf('//') + 2, leftText.search(/\r\n|\r|\n/));
-    return trivia.trim();
-  }
-  
-  
-  const getSharkInfoFromNode = (nodeList) => {
-    const ret = [];
-    for (let i = 0; i < nodeList.length; i++) {
-      const node = nodeList[i];
-      const sharkKey = getSharkKey(node);
-      const varIdentityText = getVarIdentityText(node)
-      if (!sharkKey) {
-        continue;
-      }
-      let origin = getNodeComment(node);
-      if (!origin) {
-        origin = getLastComment(node);
-      }
+    let retValList = []
 
-      const sharkInfo = {
-        varIdentityText,
-        transKey: sharkKey,
-        origin
-      };
-      ret.push(sharkInfo);
-    }
-    return ret;
-  }
+    properties.map(item=> {
+      const key = item.key.name, value = item.value.value, end = item.value.end
 
-  const getVarIdentityText = (node) => {
-    for (const childNode of node.getChildren()) {
-        if (ts.SyntaxKind.Identifier === childNode.kind) {
-          return childNode.getText();
-        }
-      }
-      return '';
-  }
-  
-  const getSharkKey = (node) => {
-    for (const childNode of node.getChildren()) {
-      if (ts.SyntaxKind.StringLiteral === childNode.kind) {
-        const text = childNode.getText();
-        return text.slice(1, text.length - 1);
-      }
-    }
-    return '';
+      const comment = comments.find(item=> item.start > end)
+      retValList.push({
+        varIdentityText: key,
+        transKey: value,
+        origin: comment.value
+      })
+
+    })
+    return retValList
   }
   
 
@@ -152,9 +91,12 @@ const getInitialData = async (filePath) => {
       return []
     }
     console.log('path', filePath)
-    const cont = tsScan([filePath])
+    
+    const cont = formatDataList(getAstInfo(filePath))
     return cont
 }
+
+
 
 const getLabelFilePath = async (document) => {
   const fileName    = document.fileName;
@@ -297,7 +239,6 @@ const init = (context) => {
   context.subscriptions.push(vscode.languages.registerHoverProvider('*', {
       provideHover
   }));
-
   //补全
   context.subscriptions.push(vscode.languages.registerCompletionItemProvider({ scheme: 'file'}, {
       provideCompletionItems
@@ -318,11 +259,9 @@ const init = (context) => {
   }))
 }
 
-
 module.exports = function(context) {
-    context.subscriptions.push(vscode.commands.registerCommand('extension.enableLabelTool', () => {
-      vscode.window.showInformationMessage('Enable Label Tool！')
-      init(context)
-    }))
-
+  context.subscriptions.push(vscode.commands.registerCommand('extension.enableLabelTool', () => {
+    vscode.window.showInformationMessage('Enable Label Tool！')
+    init(context)
+  }))
 };
