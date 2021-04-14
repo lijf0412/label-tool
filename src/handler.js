@@ -1,8 +1,7 @@
 const vscode = require('vscode');
- const path = require('path');
+const path = require('path');
 const fs = require('fs');
 const util = require('./util')
-const readline = require('readline');
 const parser = require('@babel/parser')
 
 const getAstInfo  = (path) => {
@@ -44,24 +43,6 @@ const formatDataList = ({ comments, body }) => {
     })
     return retValList
   }
-  
-
-const readNthLine = (filePath, n) => {
-    return new Promise((resolve, reject) => {
-        const fRead = fs.createReadStream(filePath)
-        let index = 0
-        const fReadLine = readline.createInterface({
-            input: fRead
-        })
-        fReadLine.on('line', line => {
-            if(n == index) {
-                resolve(line)
-                fReadLine.close()
-            }
-            index++
-        })
-    })
-} 
 
 const getPreffix = str => {
     if(!str) return str
@@ -101,9 +82,8 @@ const getInitialData = async (filePath) => {
 const getLabelFilePath = async (document) => {
   const fileName    = document.fileName;
   const workDir = path.dirname(fileName);
-  const { row } = util.findStrInFile(fileName, COMMON_LABEL)
-  const data = await readNthLine(fileName, row)
-  const filePath = data.split(' ').pop().replace(/;/,'').replace(/'(.*?)'/,'$1')
+  const { content } = util.findStrInFile(fileName, COMMON_LABEL)
+  const filePath = content.split(' ').pop().replace(/;/,'').replace(/'(.*?)'/,'$1')
   const pathT = path.resolve(workDir, filePath)
   const ext = ['ts','js', 'tsx', 'jsx'].find(item=> fs.existsSync(pathT+'.'+item))
   if(!ext) return
@@ -117,6 +97,43 @@ const COMMON_LABEL = 'COMMON_LABEL'
 const checkFileExt = document => {
   const [name, ext] = document.fileName.split('.')
   if(['js','jsx','ts','tsx'].includes(ext)) return true
+}
+
+const createKey = (word) => {
+  const len = initialDataList? initialDataList.length: 0
+  const props = {
+    1: {
+        title: 'sharkKey',
+        prompt: '(如: key.proivderCommon.test)'
+    },
+    2: {
+        title: '原始文本',
+        prompt: '(如: 测试)'
+    }
+  }
+  let transKey='', origin = ''
+  const inputBox = vscode.window.createInputBox()
+  //初始参数
+  inputBox.step = 1
+  inputBox.totalSteps = 2
+  inputBox.title = props[inputBox.step].title
+  inputBox.prompt = props[inputBox.step].prompt
+  inputBox.value = (len? getPreffix(initialDataList[len-1].transKey): 'key.common.')+word
+
+  inputBox.onDidHide(() => doing = false)
+  inputBox.onDidAccept(() => {
+      inputBox.step == 1? transKey = inputBox.value: origin = inputBox.value
+      inputBox.value = ''
+      if(inputBox.step >= 2) {
+          saveKey(word, transKey, origin, labelFilePath)
+          inputBox.hide()
+      }
+      inputBox.step = inputBox.step+1
+      inputBox.title = props[inputBox.step].title
+      inputBox.prompt = props[inputBox.step].prompt
+      
+  })
+  inputBox.show()
 }
 
 const provideHover = async (document, position, token) => {
@@ -136,57 +153,22 @@ const provideHover = async (document, position, token) => {
         }
         if(!initialDataList) return
 
-        const len = initialDataList? initialDataList.length: 0
-
         const textNode = initialDataList.find(item=> item.varIdentityText == word)
-
         if(textNode) {
             return new vscode.Hover('当前值为：'+textNode.origin)
         }
-
-
-        const props = {
-            1: {
-                title: 'sharkKey',
-                prompt: '(如: key.proivderCommon.test)'
-            },
-            2: {
-                title: '原始文本',
-                prompt: '(如: 测试)'
-            }
-        }
-        let transKey='', origin = ''
         if(doing) return
-        const inputBox = vscode.window.createInputBox()
-        //初始参数
-        inputBox.step = 1
-        inputBox.totalSteps = 2
-        inputBox.title = props[inputBox.step].title
-        inputBox.prompt = props[inputBox.step].prompt
-        inputBox.value = (len? getPreffix(initialDataList[len-1].transKey): 'key.common.')+word
+        
+        createKey(word)
 
-        inputBox.onDidHide(() => doing = false)
-        inputBox.onDidAccept(() => {
-            inputBox.step == 1? transKey = inputBox.value: origin = inputBox.value
-            inputBox.value = ''
-            if(inputBox.step >= 2) {
-                saveKey(word, transKey, origin, labelFilePath)
-                inputBox.hide()
-            }
-            inputBox.step = inputBox.step+1
-            inputBox.title = props[inputBox.step].title
-            inputBox.prompt = props[inputBox.step].prompt
-            
-        })
-        inputBox.show()
         doing = true
         return
     }
 }
 
-const insertTextFun = (position, text) => {
-  vscode.commands.executeCommand('extension.useEditorCommand', position, text).then(result=> {
-    console.log('command res', result)
+const insertTextFun = (position, text, isNew) => {
+  vscode.commands.executeCommand('extension.useEditorCommand', position, text).then(()=> {
+    isNew && createKey(text)
   })
 }
 
@@ -219,7 +201,7 @@ const provideCompletionItems = async (document, position, token, context) => {
 
         console.log('to insert val:', insertText)
         if(!insertText) return
-        insertTextFun(position, insertText)
+        insertTextFun(position, insertText, !selectedItems.length)
         quickPicker.hide()
       })
       quickPicker.matchOnDetail = true

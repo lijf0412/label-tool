@@ -17,10 +17,10 @@ const util = {
         for(let i = 0; i < rows.length; i++) {
             let col = rows[i].search(reg);
             if(col >= 0) {
-                return {row: i, col};
+                return {row: i, col, content: rows[i]};
             }
         }
-        return {row: 0, col: 0};
+        return {row: 0, col: 0, content: ''};
     }
 };
 

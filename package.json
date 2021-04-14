@@ -7,8 +7,8 @@
         "plugin",
         "demo"
     ],
-    "version": "1.0.1",
-    "publisher": "lzl",
+    "version": "0.0.1",
+    "publisher": "zhoulongli",
     "engines": {
         "vscode": "^1.27.0"
     },
@@ -16,8 +16,9 @@
         "Other"
     ],
     "activationEvents": [
-        "onCommand:extension.enableLabelTool"
+        "*"
     ],
+    "icon": "images/icon.png",
     "main": "./src/extension",
     "contributes": {
         "commands": [
@@ -50,5 +51,13 @@
         "@types/node": "^7.0.43",
         "@types/mocha": "^2.2.42"
     },
-    "license": "SEE LICENSE IN LICENSE.txt"
+    "license": "SEE LICENSE IN LICENSE.txt",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/lijf0412/label-tool"
+    },
+    "homepage": "https://github.com/lijf0412/label-tool/blob/main/README.md",
+    "dependencies": {
+        "@babel/parser": "^7.13.15"
+    }
 }
